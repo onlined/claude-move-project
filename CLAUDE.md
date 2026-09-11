@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **History folder** - `~/.claude/projects/[encoded-path]/` containing session JSONL files
 3. **History index** - `~/.claude/history.jsonl` with project path references
 
-The encoded path format converts `/path/to/dir` to `-path-to-dir`.
+The encoded path format replaces every non-alphanumeric character with `-`: `/path/to/my_dir.v2` becomes `-path-to-my-dir-v2`. Only `encode_path` in `clamp` (and its mirror in `test.sh`) may implement this rule.
 
 ## Testing
 

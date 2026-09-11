@@ -16,6 +16,12 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Mirror Claude Code's history-folder encoding: every non-alphanumeric char -> "-"
+encode_path() {
+    local path="$1"
+    echo "${path//[^A-Za-z0-9]/-}"
+}
+
 # Test directory setup
 TEST_DIR=""
 MOCK_CLAUDE_DIR=""
@@ -79,7 +85,7 @@ create_mock_project() {
     # Create encoded history folder
     local abs_path
     abs_path=$(cd "$project_path" && pwd)
-    local encoded="${abs_path//\//-}"
+    local encoded="$(encode_path "$abs_path")"
 
     mkdir -p "$MOCK_CLAUDE_DIR/projects/$encoded"
     echo '{"type":"session","data":"test"}' > "$MOCK_CLAUDE_DIR/projects/$encoded/session1.jsonl"
@@ -201,8 +207,8 @@ test_basic_move() {
     assert_exists "$dest_abs/.claude/settings.json" "Settings should be moved" || return 1
 
     # Verify history folder renamed
-    local old_encoded="${source_abs//\//-}"
-    local new_encoded="${dest_abs//\//-}"
+    local old_encoded="$(encode_path "$source_abs")"
+    local new_encoded="$(encode_path "$dest_abs")"
     assert_not_exists "$MOCK_CLAUDE_DIR/projects/$old_encoded" "Old history folder should be gone" || return 1
     assert_dir_exists "$MOCK_CLAUDE_DIR/projects/$new_encoded" "New history folder should exist" || return 1
 
@@ -295,6 +301,26 @@ test_special_chars_dots() {
 
     assert_not_exists "$source_abs" "Source should be gone" || return 1
     assert_dir_exists "$dest_abs" "Destination should exist" || return 1
+}
+
+test_special_chars_underscore() {
+    # Claude Code encodes "_" as "-" in the history folder name, so the folder
+    # for /tmp/my_project is "-tmp-my-project". Moving must find and rename it.
+    create_mock_project "$TEST_DIR/my_project"
+    local source_abs="$TEST_DIR/my_project"
+    local dest_abs="$TEST_DIR/renamed_project"
+
+    "$SCRIPT" "$source_abs" "$dest_abs" -f
+
+    assert_not_exists "$source_abs" "Source should be gone" || return 1
+    assert_dir_exists "$dest_abs" "Destination should exist" || return 1
+
+    local old_encoded new_encoded
+    old_encoded=$(encode_path "$source_abs")
+    new_encoded=$(encode_path "$dest_abs")
+    assert_not_exists "$MOCK_CLAUDE_DIR/projects/$old_encoded" "Old history folder should be gone" || return 1
+    assert_dir_exists "$MOCK_CLAUDE_DIR/projects/$new_encoded" "New history folder should exist" || return 1
+    assert_exists "$MOCK_CLAUDE_DIR/projects/$new_encoded/session1.jsonl" "Session should be migrated" || return 1
 }
 
 test_symlink_source() {
@@ -642,8 +668,8 @@ test_fix_explicit() {
     assert_not_contains "$MOCK_CLAUDE_DIR/history.jsonl" "$old_abs" "History should not contain old path" || return 1
 
     # Verify session folder was renamed
-    local old_encoded="${old_abs//\//-}"
-    local new_encoded="${new_abs//\//-}"
+    local old_encoded="$(encode_path "$old_abs")"
+    local new_encoded="$(encode_path "$new_abs")"
     assert_not_exists "$MOCK_CLAUDE_DIR/projects/$old_encoded" "Old session folder should be gone" || return 1
     assert_dir_exists "$MOCK_CLAUDE_DIR/projects/$new_encoded" "New session folder should exist" || return 1
 }
@@ -707,7 +733,7 @@ test_prune_orphaned() {
     # Real project session folder should still exist
     local real_abs
     real_abs=$(cd "$TEST_DIR/real-project" && pwd)
-    local real_encoded="${real_abs//\//-}"
+    local real_encoded="$(encode_path "$real_abs")"
     assert_dir_exists "$MOCK_CLAUDE_DIR/projects/$real_encoded" "Real project session should remain" || return 1
 
     # Output should mention pruning
@@ -823,6 +849,7 @@ main() {
         test_special_chars_brackets
         test_special_chars_spaces
         test_special_chars_dots
+        test_special_chars_underscore
         test_symlink_source
         test_dry_run
         test_nonexistent_source

@@ -147,10 +147,12 @@ What gets migrated:
 EOF
 }
 
-# Convert path to Claude's encoded format: /path/to/dir -> -path-to-dir
+# Convert path to Claude's encoded format: /path/to/my_dir.v2 -> -path-to-my-dir-v2
+# Claude Code replaces every character that is not a letter or digit with "-",
+# not just "/" — so "_", ".", " " etc. all become "-" as well.
 encode_path() {
     local path="$1"
-    echo "${path//\//-}"
+    echo "${path//[^A-Za-z0-9]/-}"
 }
 
 # Get absolute path (works on macOS and Linux)
@@ -1396,7 +1398,7 @@ execute_list() {
     if [[ -n "$seen" ]]; then
         while IFS= read -r kp; do
             [[ -z "$kp" ]] && continue
-            known_encoded="${known_encoded}${known_encoded:+$'\n'}${kp//\//-}"
+            known_encoded="${known_encoded}${known_encoded:+$'\n'}$(encode_path "$kp")"
         done <<< "$seen"
     fi
 
@@ -1432,7 +1434,7 @@ execute_list() {
         local first=true
         while IFS= read -r proj_path; do
             [[ -z "$proj_path" ]] && continue
-            local encoded="${proj_path//\//-}"
+            local encoded="$(encode_path "$proj_path")"
             local sessions
             sessions=$(count_sessions "$encoded")
             local size="0"
@@ -1476,7 +1478,7 @@ execute_list() {
 
         while IFS= read -r proj_path; do
             [[ -z "$proj_path" ]] && continue
-            local encoded="${proj_path//\//-}"
+            local encoded="$(encode_path "$proj_path")"
             local sessions
             sessions=$(count_sessions "$encoded")
             local status_icon status_label
@@ -1556,7 +1558,7 @@ execute_verify() {
     if [[ -n "$unique_projects" ]]; then
         while IFS= read -r pp; do
             [[ -z "$pp" ]] && continue
-            known_encoded="${known_encoded}${known_encoded:+$'\n'}${pp//\//-}"
+            known_encoded="${known_encoded}${known_encoded:+$'\n'}$(encode_path "$pp")"
         done <<< "$unique_projects"
     fi
 
@@ -1603,7 +1605,7 @@ execute_verify() {
         if [[ -n "$unique_hist" ]]; then
             while IFS= read -r proj_path; do
                 [[ -z "$proj_path" ]] && continue
-                local encoded="${proj_path//\//-}"
+                local encoded="$(encode_path "$proj_path")"
                 if [[ -d "$proj_path" && ! -d "$PROJECTS_DIR/$encoded" ]]; then
                     if [[ $missing_sessions -eq 0 ]]; then
                         echo -e "  ${YELLOW}Projects with history entries but no session folder:${NC}"
@@ -1645,7 +1647,7 @@ execute_prune() {
     if [[ -n "$unique_projects" ]]; then
         while IFS= read -r pp; do
             [[ -z "$pp" ]] && continue
-            known_encoded="${known_encoded}${known_encoded:+$'\n'}${pp//\//-}"
+            known_encoded="${known_encoded}${known_encoded:+$'\n'}$(encode_path "$pp")"
         done <<< "$unique_projects"
     fi
 
@@ -1721,7 +1723,7 @@ execute_prune() {
 
 # Execute info operation
 execute_info() {
-    local encoded="${SOURCE_ABS//\//-}"
+    local encoded="$(encode_path "$SOURCE_ABS")"
 
     echo ""
     echo "Claude Code Project Info"
@@ -1814,8 +1816,8 @@ execute_fix() {
 execute_fix_explicit() {
     local old_path="$1"
     local new_path="$2"
-    local old_encoded="${old_path//\//-}"
-    local new_encoded="${new_path//\//-}"
+    local old_encoded="$(encode_path "$old_path")"
+    local new_encoded="$(encode_path "$new_path")"
 
     log_info "Fixing: $old_path → $new_path"
     echo ""
@@ -2006,7 +2008,7 @@ execute_fix_auto() {
     if [[ -n "$unique_projects" ]]; then
         while IFS= read -r kp; do
             [[ -z "$kp" ]] && continue
-            known_encoded="${known_encoded}${known_encoded:+$'\n'}${kp//\//-}"
+            known_encoded="${known_encoded}${known_encoded:+$'\n'}$(encode_path "$kp")"
         done <<< "$unique_projects"
     fi
 
